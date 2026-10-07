@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Berlin Housing Explorer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{--ink:#153345;--muted:#546978;--blue:#14677d;--bg:#eef3f4;--line:#d6e1e4}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,sans-serif}header{background:#153345;color:white;padding:18px 28px;display:flex;justify-content:space-between;gap:20px;align-items:center}h1{font-size:24px;line-height:1.2;margin:0}header p{margin:5px 0 0;color:#b9d2dc;font-size:13px}header a{color:white}main{display:grid;grid-template-columns:340px 1fr;gap:18px;padding:18px;max-width:1800px;margin:auto}.card{background:white;border:1px solid var(--line);border-radius:12px;padding:19px;margin-bottom:14px}h2{font-size:17px;margin:0 0 12px}h3{font-size:14px;margin:16px 0 5px}p{margin:6px 0 12px}.small{font-size:12px;color:var(--muted)}label{display:block;font-size:13px;font-weight:600;margin-top:10px}input,select,button{font:inherit;border-radius:6px;border:1px solid #b6cbd3;padding:9px;width:100%}input,select{background:white;color:var(--ink)}button{background:var(--blue);color:white;cursor:pointer;font-weight:600;margin-top:10px}button:disabled{opacity:.5;cursor:wait}.secondary{background:#edf4f6;color:var(--ink)}.danger{background:white;color:#a02929;border-color:#e0bbbb}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}#map{height:560px;border-radius:12px;background:#dde7e8;z-index:1}.status{padding:10px 13px;background:#e6f2f4;border-radius:7px;font-size:13px;margin:0 0 14px}.status.error{background:#ffe9e5;color:#922c20}.legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0}.legend label{margin:0;font-size:12px;display:flex;align-items:center;gap:5px}.legend input{width:15px}.dot{width:12px;height:12px;border-radius:3px;display:inline-block}table{border-collapse:collapse;width:100%;font-size:13px}td,th{text-align:left;padding:9px 7px;border-bottom:1px solid var(--line)}th{color:var(--muted)}.scroll{overflow:auto;max-height:330px}#key{font-family:monospace;font-size:12px}summary{cursor:pointer;font-weight:600;font-size:13px}.pill{display:inline-block;padding:3px 10px;background:#dbecee;border-radius:99px;font-size:12px}#stats{margin-top:12px}.bar{height:6px;background:#dcebed;border-radius:5px;margin:5px 0 9px}.bar span{display:block;background:#268598;height:100%;border-radius:5px}footer{padding:0 22px 20px;font-size:11px;color:var(--muted)}a{color:#14677d}@media(max-width:850px){main{grid-template-columns:1fr}#map{height:440px}header{align-items:flex-start}header a{font-size:12px}}
+.transit-filters{display:flex;flex-wrap:wrap;gap:8px}.transit-filters label{display:flex;align-items:center;gap:5px;margin:0;padding:5px 8px;border:1px solid var(--line);border-radius:6px}.transit-filters input{width:auto}.transit-badge{display:inline-block;color:white;border-radius:5px;padding:2px 6px;margin:2px;font-size:11px}.transit-detail{font-size:12px;min-width:175px}.transit-detail summary{font-size:12px}.transit-focus{width:auto;padding:4px 8px;font-size:11px;margin:4px 0}.transit-note{border-left:3px solid #14677d;padding-left:10px}
+</style></head><body>
+<header><div><h1>Berlin Housing Explorer</h1><p>Compare area prices. Choose a workplace. Save and revisit your search.</p></div><a href="/docs" target="_blank" rel="noopener">API documentation ↗</a></header>
+<main><aside>
+<section class="card"><h2>Your housing search</h2><span id="profileState" class="pill">New profile</span>
+<form id="profileForm"><label for="name">Profile name</label><input id="name" minlength="2" maxlength="100" required placeholder="e.g. Ahmed">
+<label for="mode">Housing market</label><select id="mode"><option value="rent">Rent · EUR/m²</option><option value="buy">Buy · EUR/m²</option></select>
+<label for="budget">Maximum price (EUR/m²)</label><input id="budget" type="number" min="0.01" max="1000000" step="0.01" value="18" required>
+<h3>Workplace location</h3><p class="small">Click the map or drag the workplace marker. You can also enter coordinates below.</p>
+<div class="row"><div><label for="lat">Latitude</label><input id="lat" type="number" min="52.3" max="52.7" step="any" value="52.52" required></div><div><label for="lon">Longitude</label><input id="lon" type="number" min="13" max="13.85" step="any" value="13.405" required></div></div>
+<label for="radius">Maximum straight-line distance (km)</label><input id="radius" type="number" min="0.1" max="100" step="0.1" value="15" required>
+<button id="save" type="submit">Save profile &amp; analyse</button></form>
+<p class="small">Your saved profile belongs to your private profile key. Keep the key to reopen it in another browser.</p>
+<details><summary>Profile key / sign in</summary><label for="key">Private profile key</label><input id="key" type="password" autocomplete="off" placeholder="Paste a saved key"><button class="secondary" id="signin">Sign in with key</button><button class="secondary" id="copykey">Copy my key</button><button class="secondary" id="signout">Sign out</button><button class="danger" id="delete">Delete my saved profile</button></details>
+</section>
+<section class="card"><h2>Public transport</h2><div class="transit-filters" id="transitFilters"></div>
+<label><input id="showTransitStops" type="checkbox" checked style="width:auto"> Show boarding points (zoom in)</label>
+<p id="transitStatus" class="small" role="status">Loading transport network…</p>
+<p class="small transit-note">Scheduled services on <span id="transitDate">the snapshot date</span>. Area coverage counts boarding points inside each boundary, including separate platforms. It does not measure walking distance, frequency or travel time.</p>
+<p class="small">Quelle: <a href="https://unternehmen.vbb.de/digitale-services/datensaetze/" target="_blank" rel="noopener">VBB Open Data</a> (https://unternehmen.vbb.de/digitale-services/datensaetze/), <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Filtered and simplified for this map.</p></section>
+<section class="card"><h2>Browser analysis</h2><p class="small">Calculated immediately in this browser from loaded region data, using the unsaved values above. Distances use a spherical approximation to a representative point inside each region.</p><div id="clientSummary">Loading regions…</div><h3>Five lowest area prices</h3><div id="cheap"></div></section>
+</aside><div>
+<div id="status" class="status" role="status" aria-live="polite">Connecting to the database…</div>
+<div id="map" aria-label="Interactive map of Berlin"></div>
+<div class="legend" aria-label="Interactive map legend">
+<label><input type="checkbox" id="showAffordable" checked><span class="dot" style="background:#159780"></span>Within price budget</label>
+<label><input type="checkbox" id="showExpensive" checked><span class="dot" style="background:#cf614d"></span>Above price budget</label>
+<label><input type="checkbox" id="showMissing" checked><span class="dot" style="background:#8b99a1"></span>No price data</label>
+<span class="small"><span class="dot" style="background:#e4b33c"></span> Gold border: recommended</span>
+</div>
+<section class="card"><h2>Server recommendations <span id="resultCount" class="pill">Not run</span></h2><p class="small">PostGIS calculates geodesic straight-line distance to a point inside each region. Lower score is better: 60% price/budget + 40% distance/maximum distance. These are area comparisons, not apartment listings or travel-time estimates.</p><div class="scroll"><table><thead><tr><th>Region</th><th id="priceHead">Price EUR/m²</th><th>Distance km</th><th>Score ↓</th><th>Public transport in area</th></tr></thead><tbody id="results"><tr><td colspan="5">Save your search to calculate recommendations.</td></tr></tbody></table></div></section>
+<section class="card"><h2>Data coverage and limits</h2><p id="coverage">Loading coverage…</p><p class="small">The boundary metadata describes Berlin's 96 Ortsteile as of 31 December 2014. This portfolio copy includes 80 area-price records created by the project author. Their observation date is not documented. Prices are not live and do not establish current affordability or investment returns. No apartment locations are inferred.</p></section>
+</div></main>
+<footer>Quelle: <a href="https://leafletjs.com/reference.html">Leaflet reference</a> (https://leafletjs.com/reference.html). Boundaries: Amt für Statistik Berlin-Brandenburg, CC BY 3.0 DE, 2014. Housing price source links are retained in data/prices.csv. See README.md for data sources and licenses.</footer>
+<script>
+// Quelle: Leaflet reference (https://leafletjs.com/reference.html)
+const $=id=>document.getElementById(id);
+let key=localStorage.getItem('berlin-profile-key')||'', data=null, matches=new Set(), layers=null, busy=false;
+const map=L.map('map',{preferCanvas:true}).setView([52.52,13.405],10);
+// Quelle: OpenStreetMap Tile Usage Policy (https://operations.osmfoundation.org/policies/tiles/)
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);
+let workplace=L.marker([52.52,13.405],{draggable:true}).addTo(map).bindTooltip('Your workplace');
+function status(text,error=false){$('status').textContent=text;$('status').className='status'+(error?' error':'');}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function api(path,options={}){const r=await fetch(path,{...options,headers:{'Content-Type':'application/json',...(key?{Authorization:'Bearer '+key}:{}),...options.headers}});if(!r.ok){let e=await r.json().catch(()=>({detail:r.statusText}));throw Error(typeof e.detail==='string'?e.detail:JSON.stringify(e.detail));}return r.status===204?null:r.json();}
+function values(){return {name:$('name').value.trim(),budget:Number($('budget').value),mode:$('mode').value,lon:Number($('lon').value),lat:Number($('lat').value),max_distance_km:Number($('radius').value)};}
+function price(p){return p[$('mode').value==='buy'?'avg_buy':'avg_rent'];}
+function category(p){let v=price(p);return v==null?'Missing':v<=Number($('budget').value)?'Affordable':'Expensive';}
+function style(f){const c=category(f.properties);return {color:matches.has(f.properties.code)?'#e4b33c':'#607985',weight:matches.has(f.properties.code)?4:1,fillOpacity:.58,fillColor:{Affordable:'#159780',Expensive:'#cf614d',Missing:'#8b99a1'}[c]};}
+function invalidate(){status('Search changed. Save and analyse to refresh server results.');matches.clear();$('resultCount').textContent='Re-run to update';$('results').innerHTML='<tr><td colspan="5">Search changed. Save and analyse to refresh server results.</td></tr>';}
+function refresh(){if(!data)return;if(layers)layers.remove();layers=L.geoJSON(data,{filter:f=>$('show'+category(f.properties)).checked,style,onEachFeature:(f,l)=>{const p=f.properties;const panel=document.createElement('div');panel.innerHTML='<b>'+esc(p.name)+'</b><br>Rent: '+(p.avg_rent==null?'No data':p.avg_rent.toFixed(2)+' EUR/m²')+'<br>Buy: '+(p.avg_buy==null?'No data':p.avg_buy.toFixed(2)+' EUR/m²')+'<hr>'+transitDetails(p.transit);l.bindPopup(panel);}}).addTo(map);clientAnalysis();}
+function setWork(lat,lon){if(lat<52.3||lat>52.7||lon<13||lon>13.85){status('Choose a workplace in the Berlin area.',true);return;}$('lat').value=lat.toFixed(6);$('lon').value=lon.toFixed(6);workplace.setLatLng([lat,lon]);invalidate();refresh();}
+map.on('click',e=>setWork(e.latlng.lat,e.latlng.lng));
+workplace.on('dragend',()=>{let p=workplace.getLatLng();setWork(p.lat,p.lng);});
+// Quelle: Turf distance - Haversine formula (https://turfjs.org/docs/api/distance)
+function haversine(lat1,lon1,lat2,lon2){const rad=Math.PI/180;const a=Math.sin((lat2-lat1)*rad/2)**2+Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin((lon2-lon1)*rad/2)**2;return 6371*2*Math.asin(Math.sqrt(Math.min(1,a)));}
+function clientAnalysis(){const v=values(),radius=Number($('radius').value);const available=data.features.filter(f=>price(f.properties)!=null);const affordable=available.filter(f=>price(f.properties)<=v.budget);const close=affordable.filter(f=>{const c=f.properties.representative_point.coordinates;return haversine(v.lat,v.lon,c[1],c[0])<=radius;});$('clientSummary').textContent=close.length+' areas meet your price and distance limits (browser estimate).';const sorted=[...available].sort((a,b)=>price(a.properties)-price(b.properties)).slice(0,5);const max=Math.max(...sorted.map(f=>price(f.properties)),1);$('cheap').innerHTML=sorted.map(f=>'<div class="small">'+esc(f.properties.name)+' · '+price(f.properties).toFixed(2)+' EUR/m²</div><div class="bar"><span style="width:'+100*price(f.properties)/max+'%"></span></div>').join('');}
+for(const id of ['name','budget','mode','lat','lon','radius'])$(id).addEventListener('input',()=>{invalidate();if(id==='mode'){$('budget').value=$('mode').value==='rent'?18:5000;}if(['lat','lon'].includes(id)&&Number.isFinite(Number($('lat').value))&&Number.isFinite(Number($('lon').value)))workplace.setLatLng([Number($('lat').value),Number($('lon').value)]);refresh();});
+for(const id of ['showAffordable','showExpensive','showMissing'])$(id).addEventListener('change',refresh);
+function useProfile(p){$('name').value=p.name;$('mode').value=p.mode;$('budget').value=p.budget;$('radius').value=p.max_distance_km;$('lat').value=p.lat;$('lon').value=p.lon;workplace.setLatLng([p.lat,p.lon]);$('profileState').textContent='Saved profile · '+p.name;$('key').value=key;refresh();}
+async function recommend(){const r=await api('/api/recommendations?max_distance_km='+encodeURIComponent($('radius').value));matches=new Set(r.results.map(x=>x.code));$('resultCount').textContent=r.count+' matches';$('priceHead').textContent=(r.mode==='rent'?'Rent':'Buy')+' EUR/m²';$('results').innerHTML=r.results.length?r.results.map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+x.price.toFixed(2)+'</td><td>'+x.distance_km.toFixed(2)+'</td><td>'+x.score.toFixed(3)+'</td><td class="transit-detail">'+transitDetails(x.transit)+'<button type="button" class="transit-focus" data-region="'+esc(x.code)+'">Show area</button></td></tr>').join(''):'<tr><td colspan="5">No areas meet these limits. Try a higher budget or distance.</td></tr>';refresh();status('Search saved. '+r.count+' server recommendations.');}
+$('profileForm').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;busy=true;$('save').disabled=true;try{const v=values();if(key){const p=await api('/api/profiles/me',{method:'PUT',body:JSON.stringify(v)});useProfile(p);}else{const r=await api('/api/profiles',{method:'POST',body:JSON.stringify(v)});key=r.key;localStorage.setItem('berlin-profile-key',key);useProfile(r.profile);}await recommend();}catch(e){status(e.message,true);}finally{busy=false;$('save').disabled=false;}});
+$('signin').onclick=async()=>{const previous=key;key=$('key').value.trim();try{useProfile(await api('/api/profiles/me'));localStorage.setItem('berlin-profile-key',key);await recommend();}catch(e){key=previous;status(e.message,true);}};
+$('copykey').onclick=async()=>{if(!key)return status('Save a profile first.',true);try{await navigator.clipboard.writeText(key);status('Private profile key copied. Keep it private.');}catch(e){$('key').type='text';$('key').value=key;status('Copy the key from the visible field.');}};
+function signout(){key='';localStorage.removeItem('berlin-profile-key');$('key').value='';$('name').value='';$('profileState').textContent='New profile';invalidate();refresh();status('Signed out. The saved profile remains on the server.');}
+$('signout').onclick=signout;
+$('delete').onclick=async()=>{if(!key)return;if(!confirm('Permanently delete your saved profile?'))return;try{await api('/api/profiles/me',{method:'DELETE'});signout();status('Profile deleted.');}catch(e){status(e.message,true);}};
+
+const transitColors={'U-Bahn':'#1764ab','S-Bahn':'#198447','Tram':'#bf263c','Bus':'#8143a5','Regional rail':'#a45a13','Ferry':'#057b91'};
+let transitData=null, transitLayers=null;
+map.createPane('transportLines');map.getPane('transportLines').style.zIndex=450;
+map.createPane('transportStops');map.getPane('transportStops').style.zIndex=460;
+function transitDetails(summary){
+ if(!summary||!summary.modes.length)return '<span class="small">No scheduled boarding points in this snapshot.</span>';
+ const badges=summary.modes.map(m=>'<span class="transit-badge" style="background:'+transitColors[m]+'">'+esc(m)+'</span>').join('');
+ const details=summary.modes.map(m=>'<div><b>'+esc(m)+'</b> · '+summary.by_mode[m].boarding_points+' boarding points<br>Lines: '+summary.by_mode[m].lines.map(esc).join(', ')+'</div>').join('<br>');
+ return badges+'<details><summary>'+summary.boarding_points+' boarding points · lines</summary>'+details+'</details>';
+}
+function selectedTransitModes(){return new Set([...document.querySelectorAll('[data-transit-mode]:checked')].map(el=>el.dataset.transitMode));}
+function renderTransit(){
+ if(!transitData)return;
+ if(transitLayers)transitLayers.remove();
+ transitLayers=L.layerGroup().addTo(map);const selected=selectedTransitModes();
+ L.geoJSON(transitData.routes,{pane:'transportLines',filter:f=>selected.has(f.properties.mode),style:f=>({color:transitColors[f.properties.mode],weight:f.properties.mode==='Bus'?1.5:3,opacity:.8,bubblingMouseEvents:false}),onEachFeature:(f,l)=>{l.options.bubblingMouseEvents=false;l.bindPopup('<b>'+esc(f.properties.mode)+' '+esc(f.properties.name)+'</b><br>Scheduled route geometry · '+esc(transitData.metadata.service_date));}}).addTo(transitLayers);
+ const stopsVisible=$('showTransitStops').checked&&map.getZoom()>=13;
+ if(stopsVisible)L.geoJSON(transitData.stops,{filter:f=>f.properties.modes.some(m=>selected.has(m)),pointToLayer:(f,ll)=>L.circleMarker(ll,{pane:'transportStops',radius:4,color:'#fff',weight:1,fillColor:transitColors[f.properties.modes.find(m=>selected.has(m))],fillOpacity:1,bubblingMouseEvents:false}),onEachFeature:(f,l)=>l.bindPopup('<b>'+esc(f.properties.name)+'</b><br>'+Object.entries(f.properties.lines).map(([m,n])=>esc(m)+': '+n.map(esc).join(', ')).join('<br>'))}).addTo(transitLayers);
+ $('transitStatus').textContent=selected.size+' transport types shown. '+(stopsVisible?'Boarding points visible.':'Zoom to level 13+ to see boarding points.');
+}
+for(const [mode,color] of Object.entries(transitColors)){
+ const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.dataset.transitMode=mode;input.checked=mode!=='Bus';
+ const dot=document.createElement('span');dot.className='dot';dot.style.background=color;
+ label.append(input,dot,document.createTextNode(mode));$('transitFilters').append(label);input.addEventListener('change',renderTransit);
+}
+$('showTransitStops').addEventListener('change',renderTransit);map.on('zoomend',renderTransit);
+$('results').addEventListener('click',e=>{const button=e.target.closest('[data-region]');if(!button||!data)return;const f=data.features.find(f=>f.properties.code===button.dataset.region);if(f){map.fitBounds(L.geoJSON(f).getBounds(),{maxZoom:14});$('map').scrollIntoView({behavior:'smooth',block:'center'});}});
+(async()=>{try{transitData=await api('/api/transit');$('transitDate').textContent=transitData.metadata.service_date;renderTransit();}catch(e){$('transitStatus').textContent='Transport map unavailable. Area coverage remains listed with the housing results.';}})();
+
+(async()=>{try{data=await api('/api/districts');const covered=data.features.filter(f=>f.properties.avg_rent!=null).length;$('coverage').textContent=data.features.length+' mapped regions · '+covered+' with price data · '+(data.features.length-covered)+' without price data.';refresh();map.fitBounds(layers.getBounds());status('Map ready. Choose your workplace and save a search.');if(key){try{useProfile(await api('/api/profiles/me'));await recommend();}catch(e){signout();status('Saved key unavailable. Paste another key or create a new profile.',true);}}}catch(e){status('Unable to load regions: '+e.message,true);}})();
+</script></body></html>

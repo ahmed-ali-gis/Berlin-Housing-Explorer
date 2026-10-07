@@ -1,0 +1,12 @@
+{
+  "provider": "Verkehrsverbund Berlin-Brandenburg (VBB)",
+  "source_url": "https://www.vbb.de/fileadmin/user_upload/VBB/Dokumente/API-Datensaetze/gtfs-mastscharf/GTFS.zip",
+  "license": "CC BY 4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "retrieved_on": "2026-09-30",
+  "service_date": "2026-09-30",
+  "source_sha256": "cfb88964afbbd2af785ce0fb17ae6064a50fc6e1abc65a8f72339f52031a41d7",
+  "scope": "Scheduled services on service_date; boarding points and supplied GTFS shapes within Berlin-area bounding box. PostGIS limits coverage to district polygons. Not live, not journey planning.",
+  "boarding_point_count": 10731,
+  "shape_variant_count": 3643
+}
